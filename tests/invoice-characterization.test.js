@@ -47,6 +47,29 @@ test('invoice preserves checkout HSN slabs and coupon totals', function () {
     figures.cgst, figures.sgst, figures.total], [1500, 150, 157.5, 78.75, 78.75, 1507.5]);
 });
 
+test('invoice line GST matches checkout GST and its summary after discount rounding', function () {
+  var items = [
+    { id: 1, name: 'Rice', hsn: '1006', price: 1, qty: 1 },
+    { id: 2, name: 'Ghee', hsn: '0405', price: 1.1, qty: 1 }
+  ];
+  var totals = pricing.computeTotals(items, 'WELCOME');
+  var order = billedOrder(items, 'WELCOME');
+  var figures = invoice.computeInvoiceFigures(order);
+
+  assert.deepEqual(totals.lines.map(function (line) { return line.tax; }), [0.05, 0.12]);
+  assert.deepEqual([order.discount, order.tax, order.total], [0.11, 0.17, 2.16]);
+  assert.deepEqual(figures.rows.map(function (row) { return row.lineTax; }), [0.05, 0.12]);
+  assert.equal(pricing.round2(figures.rows.reduce(function (sum, row) {
+    return sum + row.lineTax;
+  }, 0)), figures.tax);
+  assert.deepEqual([figures.tax, figures.total], [0.17, 2.16]);
+
+  var html = invoice.render(order);
+  assert.ok(html.includes('<td class="r">₹0.12</td>'));
+  assert.ok(html.includes('CGST + SGST (Total GST)</td><td class="r">₹0.17'));
+  assert.ok(html.includes('Invoice Total</td><td class="r">₹2.16'));
+});
+
 test('CURRENT BEHAVIOUR: invoice uses billed order totals rather than recalculating coupon figures', function () {
   var order = billedOrder([
     { id: 1, name: 'Rice', hsn: '1006', price: 2000, qty: 1 }
@@ -95,6 +118,7 @@ test('invoice uses tax module explicit GST rates and stored tax totals', functio
   [
     { rate: 12, checkoutTax: 12, invoicePercent: 12, invoiceTax: 12 },
     { rate: 0.12, checkoutTax: 12, invoicePercent: 12, invoiceTax: 12 },
+    { rate: 0.125, checkoutTax: 12.5, invoicePercent: 12.5, invoiceTax: 12.5 },
     { rate: 0, checkoutTax: 0, invoicePercent: 0, invoiceTax: 0 }
   ].forEach(function (example) {
     var order = billedOrder([
